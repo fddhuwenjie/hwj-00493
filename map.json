@@ -1,0 +1,1541 @@
+{
+  "version": 1,
+  "sourceFile": "debug.wat",
+  "generatedAt": "2026-06-18T05:29:31.904Z",
+  "functions": [
+    {
+      "name": "$nested_demo",
+      "index": 0,
+      "instrCount": 49,
+      "sourceRange": {
+        "startLine": 3,
+        "startCol": 4,
+        "endLine": 84,
+        "endCol": 5
+      },
+      "params": [
+        {
+          "name": "$n",
+          "index": 0,
+          "type": "i32"
+        }
+      ],
+      "locals": [
+        {
+          "name": "$i",
+          "index": 1,
+          "type": "i32"
+        },
+        {
+          "name": "$sum",
+          "index": 2,
+          "type": "i32"
+        },
+        {
+          "name": "$temp",
+          "index": 3,
+          "type": "i32"
+        }
+      ],
+      "instructions": [
+        {
+          "index": 0,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "0"
+            }
+          ],
+          "source": {
+            "line": 9,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 3,
+          "codeSize": 2
+        },
+        {
+          "index": 1,
+          "opcode": "local.set",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$sum"
+            }
+          ],
+          "source": {
+            "line": 10,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 5,
+          "codeSize": 2
+        },
+        {
+          "index": 2,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "0"
+            }
+          ],
+          "source": {
+            "line": 13,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 7,
+          "codeSize": 2
+        },
+        {
+          "index": 3,
+          "opcode": "local.set",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$i"
+            }
+          ],
+          "source": {
+            "line": 14,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 9,
+          "codeSize": 2
+        },
+        {
+          "index": 47,
+          "opcode": "block",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$outer"
+            }
+          ],
+          "source": {
+            "line": 17,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 11,
+          "codeSize": 84
+        },
+        {
+          "index": 46,
+          "opcode": "loop",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$main_loop"
+            }
+          ],
+          "source": {
+            "line": 19,
+            "col": 7
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            }
+          ],
+          "codeOffset": 13,
+          "codeSize": 81
+        },
+        {
+          "index": 4,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$i"
+            }
+          ],
+          "source": {
+            "line": 21,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 15,
+          "codeSize": 2
+        },
+        {
+          "index": 5,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$n"
+            }
+          ],
+          "source": {
+            "line": 22,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 17,
+          "codeSize": 2
+        },
+        {
+          "index": 6,
+          "opcode": "i32.ge_s",
+          "args": [],
+          "source": {
+            "line": 23,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 19,
+          "codeSize": 1
+        },
+        {
+          "index": 7,
+          "opcode": "br_if",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$outer"
+            }
+          ],
+          "source": {
+            "line": 24,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 20,
+          "codeSize": 2
+        },
+        {
+          "index": 40,
+          "opcode": "block",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$inner"
+            }
+          ],
+          "source": {
+            "line": 27,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 22,
+          "codeSize": 62
+        },
+        {
+          "index": 8,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$i"
+            }
+          ],
+          "source": {
+            "line": 28,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 24,
+          "codeSize": 2
+        },
+        {
+          "index": 9,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "2"
+            }
+          ],
+          "source": {
+            "line": 29,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 26,
+          "codeSize": 2
+        },
+        {
+          "index": 10,
+          "opcode": "i32.rem_s",
+          "args": [],
+          "source": {
+            "line": 30,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 28,
+          "codeSize": 1
+        },
+        {
+          "index": 11,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "0"
+            }
+          ],
+          "source": {
+            "line": 31,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 29,
+          "codeSize": 2
+        },
+        {
+          "index": 12,
+          "opcode": "i32.eq",
+          "args": [],
+          "source": {
+            "line": 32,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 31,
+          "codeSize": 1
+        },
+        {
+          "index": 21,
+          "opcode": "if",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$check_even"
+            },
+            {
+              "kind": "KEYWORD",
+              "value": "i32"
+            }
+          ],
+          "source": {
+            "line": 33,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 32,
+          "codeSize": 17
+        },
+        {
+          "index": 13,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$i"
+            }
+          ],
+          "source": {
+            "line": 35,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "if",
+              "label": "$check_even",
+              "branch": "else"
+            }
+          ],
+          "codeOffset": 34,
+          "codeSize": 2
+        },
+        {
+          "index": 14,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "2"
+            }
+          ],
+          "source": {
+            "line": 36,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "if",
+              "label": "$check_even",
+              "branch": "else"
+            }
+          ],
+          "codeOffset": 36,
+          "codeSize": 2
+        },
+        {
+          "index": 15,
+          "opcode": "i32.mul",
+          "args": [],
+          "source": {
+            "line": 37,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "if",
+              "label": "$check_even",
+              "branch": "else"
+            }
+          ],
+          "codeOffset": 38,
+          "codeSize": 1
+        },
+        {
+          "index": 16,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$i"
+            }
+          ],
+          "source": {
+            "line": 40,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "if",
+              "label": "$check_even",
+              "branch": "else"
+            }
+          ],
+          "codeOffset": 40,
+          "codeSize": 2
+        },
+        {
+          "index": 17,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "3"
+            }
+          ],
+          "source": {
+            "line": 41,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "if",
+              "label": "$check_even",
+              "branch": "else"
+            }
+          ],
+          "codeOffset": 42,
+          "codeSize": 2
+        },
+        {
+          "index": 18,
+          "opcode": "i32.mul",
+          "args": [],
+          "source": {
+            "line": 42,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "if",
+              "label": "$check_even",
+              "branch": "else"
+            }
+          ],
+          "codeOffset": 44,
+          "codeSize": 1
+        },
+        {
+          "index": 19,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "1"
+            }
+          ],
+          "source": {
+            "line": 43,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "if",
+              "label": "$check_even",
+              "branch": "else"
+            }
+          ],
+          "codeOffset": 45,
+          "codeSize": 2
+        },
+        {
+          "index": 20,
+          "opcode": "i32.add",
+          "args": [],
+          "source": {
+            "line": 44,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "if",
+              "label": "$check_even",
+              "branch": "else"
+            }
+          ],
+          "codeOffset": 47,
+          "codeSize": 1
+        },
+        {
+          "index": 22,
+          "opcode": "local.tee",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$temp"
+            }
+          ],
+          "source": {
+            "line": 48,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 49,
+          "codeSize": 2
+        },
+        {
+          "index": 23,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$sum"
+            }
+          ],
+          "source": {
+            "line": 49,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 51,
+          "codeSize": 2
+        },
+        {
+          "index": 24,
+          "opcode": "i32.add",
+          "args": [],
+          "source": {
+            "line": 50,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 53,
+          "codeSize": 1
+        },
+        {
+          "index": 25,
+          "opcode": "local.set",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$sum"
+            }
+          ],
+          "source": {
+            "line": 51,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 54,
+          "codeSize": 2
+        },
+        {
+          "index": 39,
+          "opcode": "loop",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$inner_loop"
+            }
+          ],
+          "source": {
+            "line": 54,
+            "col": 11
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            }
+          ],
+          "codeOffset": 56,
+          "codeSize": 27
+        },
+        {
+          "index": 26,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$temp"
+            }
+          ],
+          "source": {
+            "line": 55,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            }
+          ],
+          "codeOffset": 58,
+          "codeSize": 2
+        },
+        {
+          "index": 27,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "1"
+            }
+          ],
+          "source": {
+            "line": 56,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            }
+          ],
+          "codeOffset": 60,
+          "codeSize": 2
+        },
+        {
+          "index": 28,
+          "opcode": "i32.gt_s",
+          "args": [],
+          "source": {
+            "line": 57,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            }
+          ],
+          "codeOffset": 62,
+          "codeSize": 1
+        },
+        {
+          "index": 38,
+          "opcode": "if",
+          "args": [],
+          "source": {
+            "line": 58,
+            "col": 13
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            }
+          ],
+          "codeOffset": 63,
+          "codeSize": 19
+        },
+        {
+          "index": 29,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$temp"
+            }
+          ],
+          "source": {
+            "line": 59,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 65,
+          "codeSize": 2
+        },
+        {
+          "index": 30,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "1"
+            }
+          ],
+          "source": {
+            "line": 60,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 67,
+          "codeSize": 2
+        },
+        {
+          "index": 31,
+          "opcode": "i32.sub",
+          "args": [],
+          "source": {
+            "line": 61,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 69,
+          "codeSize": 1
+        },
+        {
+          "index": 32,
+          "opcode": "local.set",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$temp"
+            }
+          ],
+          "source": {
+            "line": 62,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 70,
+          "codeSize": 2
+        },
+        {
+          "index": 33,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$sum"
+            }
+          ],
+          "source": {
+            "line": 64,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 72,
+          "codeSize": 2
+        },
+        {
+          "index": 34,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$temp"
+            }
+          ],
+          "source": {
+            "line": 65,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 74,
+          "codeSize": 2
+        },
+        {
+          "index": 35,
+          "opcode": "i32.add",
+          "args": [],
+          "source": {
+            "line": 66,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 76,
+          "codeSize": 1
+        },
+        {
+          "index": 36,
+          "opcode": "local.set",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$sum"
+            }
+          ],
+          "source": {
+            "line": 67,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 77,
+          "codeSize": 2
+        },
+        {
+          "index": 37,
+          "opcode": "br",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$inner_loop"
+            }
+          ],
+          "source": {
+            "line": 69,
+            "col": 15
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            },
+            {
+              "opcode": "block",
+              "label": "$inner"
+            },
+            {
+              "opcode": "loop",
+              "label": "$inner_loop"
+            },
+            {
+              "opcode": "if",
+              "label": null,
+              "branch": "then"
+            }
+          ],
+          "codeOffset": 79,
+          "codeSize": 2
+        },
+        {
+          "index": 41,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$i"
+            }
+          ],
+          "source": {
+            "line": 75,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 84,
+          "codeSize": 2
+        },
+        {
+          "index": 42,
+          "opcode": "i32.const",
+          "args": [
+            {
+              "kind": "NUMBER",
+              "value": "1"
+            }
+          ],
+          "source": {
+            "line": 76,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 86,
+          "codeSize": 2
+        },
+        {
+          "index": 43,
+          "opcode": "i32.add",
+          "args": [],
+          "source": {
+            "line": 77,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 88,
+          "codeSize": 1
+        },
+        {
+          "index": 44,
+          "opcode": "local.set",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$i"
+            }
+          ],
+          "source": {
+            "line": 78,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 89,
+          "codeSize": 2
+        },
+        {
+          "index": 45,
+          "opcode": "br",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$main_loop"
+            }
+          ],
+          "source": {
+            "line": 80,
+            "col": 9
+          },
+          "ctrlPath": [
+            {
+              "opcode": "block",
+              "label": "$outer"
+            },
+            {
+              "opcode": "loop",
+              "label": "$main_loop"
+            }
+          ],
+          "codeOffset": 91,
+          "codeSize": 2
+        },
+        {
+          "index": 48,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$sum"
+            }
+          ],
+          "source": {
+            "line": 84,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 95,
+          "codeSize": 2
+        }
+      ]
+    },
+    {
+      "name": "$error_demo",
+      "index": 1,
+      "instrCount": 3,
+      "sourceRange": {
+        "startLine": 88,
+        "startCol": 4,
+        "endLine": 91,
+        "endCol": 5
+      },
+      "params": [
+        {
+          "name": "$a",
+          "index": 0,
+          "type": "i32"
+        },
+        {
+          "name": "$b",
+          "index": 1,
+          "type": "i32"
+        }
+      ],
+      "locals": [],
+      "instructions": [
+        {
+          "index": 0,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$a"
+            }
+          ],
+          "source": {
+            "line": 89,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 1,
+          "codeSize": 2
+        },
+        {
+          "index": 1,
+          "opcode": "local.get",
+          "args": [
+            {
+              "kind": "IDENTIFIER",
+              "value": "$b"
+            }
+          ],
+          "source": {
+            "line": 90,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 3,
+          "codeSize": 2
+        },
+        {
+          "index": 2,
+          "opcode": "i32.add",
+          "args": [],
+          "source": {
+            "line": 91,
+            "col": 5
+          },
+          "ctrlPath": [],
+          "codeOffset": 5,
+          "codeSize": 1
+        }
+      ]
+    }
+  ]
+}

@@ -494,7 +494,10 @@ class Parser {
 
   _parseFunc(node){
     const f={name:null,exportName:null,params:[],paramNames:[],results:[],
-             locals:[],localNames:[],instructions:[],typeRef:null};
+             locals:[],localNames:[],instructions:[],typeRef:null,
+             loc:{startLine:null,startCol:null,endLine:null,endCol:null}};
+    const funcToken=node.children[0]?.token;
+    if(funcToken){f.loc.startLine=funcToken.line;f.loc.startCol=funcToken.col;}
     let instStart=-1;
     for(let i=1;i<node.children.length;i++){
       const c=node.children[i];
@@ -545,12 +548,16 @@ class Parser {
       const instrs=this._parseFlatInstrs(node.children.slice(instStart));
       f.instructions=instrs;
     }
+    const lastInstr=f.instructions[f.instructions.length-1];
+    if(lastInstr&&lastInstr.loc){
+      f.loc.endLine=lastInstr.loc.line;
+      f.loc.endCol=lastInstr.loc.col;
+    }
+    f.instrCount=countInstructions(f.instructions).count;
     return f;
   }
 
-  _parseFlatInstrs(ch){
-    // 将混合的atom(扁平)和list(s-expr)形式统一解析为指令数组
-    // 构建一个线性的token流
+  _parseFlatInstrs(ch, instrIndexRef=null, ctrlPathBase=null){
     const tokens=[];
     for(const c of ch){
       if(c.type==='atom')tokens.push({kind:'atom',node:c});
@@ -559,35 +566,49 @@ class Parser {
     let pos=0;
     const peek=()=>tokens[pos];
     const advance=()=>tokens[pos++];
+    const instrIndex=instrIndexRef||{value:0};
+    const ctrlPath=ctrlPathBase?[...ctrlPathBase]:[];
+
+    const addLoc=(ins,token,path)=>{
+      ins.loc={line:token.line,col:token.col};
+      ins.ctrlPath=[...path];
+      ins.index=instrIndex.value++;
+      return ins;
+    };
 
     const parseOne=()=>{
       const t=peek();
       if(!t)return null;
       if(t.kind==='list'){
         advance();
-        return this._parseInstr(t.node);
+        const ins=this._parseInstr(t.node);
+        if(ins&&ins.opcode!=='end'&&ins.opcode!=='else'&&ins.opcode!=='then'){
+          const firstToken=t.node.children[0]?.token;
+          if(firstToken)addLoc(ins,firstToken,ctrlPath);
+        }
+        return ins;
       }
-      // 扁平atom格式
       const opToken=t.node.token;
       const op=opToken.value;
       advance();
 
-      // 控制流指令: block/loop/if 需要读end
       if(op==='block'||op==='loop'){
         let lbl=null,res=[];
-        // 可选 label
         if(peek()&&peek().kind==='atom'&&peek().node.token.type==='IDENTIFIER'){
           lbl=peek().node.token.value;advance();
         }
-        // 可选 (result type...)
         while(peek()&&peek().kind==='list'&&peek().node.children[0]?.token.value==='result'){
           const rl=advance().node;
           for(let k=1;k<rl.children.length;k++){
             if(rl.children[k].type==='atom')res.push(rl.children[k].token.value);
           }
         }
+        const ctrlEntry={opcode:op,label:lbl||null};
+        ctrlPath.push(ctrlEntry);
         const body=parseBlock(['end']);
-        return {opcode:op,args:[lbl,res,body],block:true};
+        ctrlPath.pop();
+        const ins={opcode:op,args:[lbl,res,body],block:true};
+        return addLoc(ins,opToken,ctrlPath);
       }
       if(op==='if'){
         let lbl=null,res=[];
@@ -600,26 +621,30 @@ class Parser {
             if(rl.children[k].type==='atom')res.push(rl.children[k].token.value);
           }
         }
+        const ctrlEntry={opcode:'if',label:lbl||null,branch:'then'};
+        ctrlPath.push(ctrlEntry);
+        lastTerminator=null;
         const thenBody=parseBlock(['else','end']);
         let elseBody=[];
-        if(peek()&&peek().kind==='atom'&&peek().node.token.value==='else'){
-          advance();
+        if(lastTerminator==='else'||(peek()&&peek().kind==='atom'&&peek().node.token.value==='else')){
+          if(lastTerminator!=='else')advance();
+          ctrlEntry.branch='else';
+          lastTerminator=null;
           elseBody=parseBlock(['end']);
         }
-        // consume end
-        if(peek()&&peek().kind==='atom'&&peek().node.token.value==='end')advance();
-        return {opcode:'if',args:[lbl,res,thenBody,elseBody],block:true};
+        ctrlPath.pop();
+        if(lastTerminator!=='end'&&(peek()&&peek().kind==='atom'&&peek().node.token.value==='end'))advance();
+        const ins={opcode:'if',args:[lbl,res,thenBody,elseBody],block:true};
+        return addLoc(ins,opToken,ctrlPath);
       }
       if(op==='end'||op==='else'||op==='then'){
         return {opcode:op,args:[]};
       }
 
-      // 普通指令：收集后续的atom参数直到遇到下一个操作码或list或end/else
       const args=[];
       while(peek()){
         const nt=peek();
         if(nt.kind==='list')break;
-        // atom - 检查是否是下一个指令操作码
         const val=nt.node.token.value;
         const type=nt.node.token.type;
         const isOpcode = (type==='KEYWORD'&&
@@ -629,18 +654,26 @@ class Parser {
         args.push({kind:type,value:val});
         advance();
       }
-      // memarg解析 (没有在扁平中使用offset=形式，通常用在list形式)
-      return {opcode:op,args,memArg:{offset:0,align:null}};
+      const ins={opcode:op,args,memArg:{offset:0,align:null}};
+      return addLoc(ins,opToken,ctrlPath);
     };
 
+    let lastTerminator=null;
     const parseBlock=(terminators)=>{
       const body=[];
       while(peek()){
         const t=peek();
-        if(t.kind==='atom'&&terminators.includes(t.node.token.value))break;
+        if(t.kind==='atom'&&terminators.includes(t.node.token.value)){
+          lastTerminator=t.node.token.value;
+          advance();
+          break;
+        }
         const ins=parseOne();
         if(ins&&ins.opcode!=='end'&&ins.opcode!=='else'&&ins.opcode!=='then')body.push(ins);
-        else if(ins&&terminators.includes(ins.opcode))break;
+        else if(ins&&terminators.includes(ins.opcode)){
+          lastTerminator=ins.opcode;
+          break;
+        }
       }
       return body;
     };
@@ -657,19 +690,23 @@ class Parser {
     return this._parseFlatInstrs(ch);
   }
 
-  _parseInstr(node){
+  _parseInstr(node, instrIndexRef=null, ctrlPathBase=null){
     if(node.type==='atom'){
       const v=node.token.value;
       if(v==='end'||v==='else'||v==='then')return {opcode:v,args:[]};
-      // 单atom指令 (nop, drop, unreachable, return等零参指令)
       if(INSTR_STACK[v]&&!INSTR_STACK[v].call&&!INSTR_STACK[v].ref&&!INSTR_STACK[v].ctrl&&!INSTR_STACK[v].branch){
         const fx=INSTR_STACK[v];
-        // 零参
         if((fx.pop===0||fx.pop===null)&&fx.mem===undefined&&fx.pushT===undefined&&
            !v.startsWith('local.')&&!v.startsWith('global.')&&!v.endsWith('.const')&&
            !v.endsWith('.load')&&!v.endsWith('.store')&&
            v!=='memory.size'&&v!=='memory.grow'){
-          return {opcode:v,args:[],memArg:{offset:0,align:null}};
+          const ins={opcode:v,args:[],memArg:{offset:0,align:null}};
+          const instrIndex=instrIndexRef||{value:0};
+          const ctrlPath=ctrlPathBase||[];
+          ins.loc={line:node.token.line,col:node.token.col};
+          ins.ctrlPath=[...ctrlPath];
+          ins.index=instrIndex.value++;
+          return ins;
         }
       }
       return null;
@@ -677,6 +714,16 @@ class Parser {
     if(node.type==='list'&&node.children.length>0){
       const h=node.children[0];if(h.type!=='atom')return null;
       const op=h.token.value;
+      const instrIndex=instrIndexRef||{value:0};
+      const ctrlPath=ctrlPathBase||[];
+
+      const addLoc=(ins,token)=>{
+        ins.loc={line:token.line,col:token.col};
+        ins.ctrlPath=[...ctrlPath];
+        ins.index=instrIndex.value++;
+        return ins;
+      };
+
       if(op==='block'||op==='loop'){
         let lbl=null,res=[],bi=1;
         if(node.children[1]?.type==='atom'&&node.children[1].token.type==='IDENTIFIER'){
@@ -688,8 +735,11 @@ class Parser {
           }
           bi++;
         }
-        const bd=this._parseFlatInstrs(node.children.slice(bi,-1));
-        return {opcode:op,args:[lbl,res,bd],block:true};
+        const ctrlEntry={opcode:op,label:lbl||null};
+        const nestedCtrlPath=[...ctrlPath,ctrlEntry];
+        const bd=this._parseFlatInstrs(node.children.slice(bi,-1),instrIndex,nestedCtrlPath);
+        const ins={opcode:op,args:[lbl,res,bd],block:true};
+        return addLoc(ins,h.token);
       }
       if(op==='if'){
         let lbl=null,res=[],bi=1;
@@ -707,9 +757,13 @@ class Parser {
           const c=node.children[k];
           if(c.type==='atom'&&c.token.value==='else'){te=k;es=k+1;break;}
         }
-        const tb=this._parseFlatInstrs(node.children.slice(bi,te));
-        const eb=es>=0?this._parseFlatInstrs(node.children.slice(es,-1)):[];
-        return {opcode:'if',args:[lbl,res,tb,eb],block:true};
+        const ctrlEntry={opcode:'if',label:lbl||null,branch:'then'};
+        const nestedCtrlPath=[...ctrlPath,ctrlEntry];
+        const tb=this._parseFlatInstrs(node.children.slice(bi,te),instrIndex,nestedCtrlPath);
+        ctrlEntry.branch='else';
+        const eb=es>=0?this._parseFlatInstrs(node.children.slice(es,-1),instrIndex,nestedCtrlPath):[];
+        const ins={opcode:'if',args:[lbl,res,tb,eb],block:true};
+        return addLoc(ins,h.token);
       }
       // 普通指令
       const args=[];
@@ -717,7 +771,6 @@ class Parser {
         const ac=node.children[k];
         if(ac.type==='atom')args.push({kind:ac.token.type,value:ac.token.value});
       }
-      // 处理内嵌的 offset= align= (memarg)
       const memArg = {offset:0,align:null};
       let cleanArgs = [];
       for(const a of args){
@@ -727,7 +780,8 @@ class Parser {
           memArg.align=parseInt(a.value.slice(6));
         } else cleanArgs.push(a);
       }
-      return {opcode:op,args:cleanArgs,memArg};
+      const ins={opcode:op,args:cleanArgs,memArg};
+      return addLoc(ins,h.token);
     }
     return null;
   }
@@ -914,6 +968,7 @@ class Validator {
     const ctrlStack = [];
     const valStack = [];
     const labels = {};
+    const funcName = func.name || `func_${funcIndex}`;
 
     ctrlStack.push({
       opcode:'func',
@@ -924,18 +979,25 @@ class Validator {
       height:0
     });
 
-    const pop = (n, from=null) => {
+    const locStr = (instr) => {
+      if (instr && instr.loc) {
+        return ` at ${funcName} line ${instr.loc.line}, col ${instr.loc.col}`;
+      }
+      return ` in ${funcName}`;
+    };
+
+    const pop = (n, from=null, instr=null) => {
       if(valStack.length<n){
         if(!ctrlStack.some(c=>c.unreachable))
-          throw new Error(`Stack underflow: need ${n}, have ${valStack.length}${from?' in '+from:''}`);
+          throw new Error(`Stack underflow: need ${n}, have ${valStack.length}${from?' in '+from:''}${locStr(instr)}`);
         return Array(n).fill('any');
       }
       return valStack.splice(-n,n);
     };
     const push = (types)=>{for(const t of types)valStack.push(t);};
     const checkT = (a,b)=> a===b||a==='any'||b==='any';
-    const assertT = (a,ex,ctx)=>{
-      if(!checkT(a,ex))throw new Error(`Type mismatch in ${ctx}: expected ${ex}, got ${a}`);
+    const assertT = (a,ex,ctx,instr=null)=>{
+      if(!checkT(a,ex))throw new Error(`Type mismatch in ${ctx}: expected ${ex}, got ${a}${locStr(instr)}`);
     };
 
     const execInstr = (instr) => {
@@ -947,41 +1009,39 @@ class Validator {
       }
 
       if(fx.ctrl){
-        // block / loop / if
         const [lbl,res,body,elseBody]=instr.args;
         if(lbl)labels[lbl]=ctrlStack.length;
-        // 检查 if 的条件
         if(op==='if'){
-          const [c]=pop(1,'if condition');
-          assertT(c,'i32','if condition');
+          const [c]=pop(1,'if condition',instr);
+          assertT(c,'i32','if condition',instr);
         }
-        // push start types (loop和block都没有pop输入)
+        const entryHeight = valStack.length;
         ctrlStack.push({
           opcode:op, label:lbl,
           startTypes:[], endTypes:[...res],
           unreachable:false,
-          height:valStack.length
+          height:entryHeight
         });
         execBody(body);
         if(op==='if'&&elseBody){
-          // if 完成then后pop结果，else完成后也要push相同结果
           const r = ctrlStack.pop();
           if(res.length>0){
-            const thenRes = pop(res.length);
-            for(let i=0;i<res.length;i++)assertT(thenRes[i],res[i],'if then');
+            const thenRes = pop(res.length,'if then',instr);
+            for(let i=0;i<res.length;i++)assertT(thenRes[i],res[i],'if then',instr);
           }
+          valStack.length = entryHeight;
           ctrlStack.push({
             opcode:'else', label:null,
             startTypes:[], endTypes:[...res],
             unreachable:false,
-            height:valStack.length
+            height:entryHeight
           });
           execBody(elseBody);
         }
         const r2 = ctrlStack.pop();
         if(res.length>0){
-          const rr = pop(res.length);
-          for(let i=0;i<res.length;i++)assertT(rr[i],res[i],`${op} result`);
+          const rr = pop(res.length,`${op} result`,instr);
+          for(let i=0;i<res.length;i++)assertT(rr[i],res[i],`${op} result`,instr);
         }
         push(res);
         return;
@@ -989,40 +1049,41 @@ class Validator {
 
       if(fx.call){
         if(op==='call'){
-          const fi = resolveIdx(instr.args,this.funcIdx.names);
-          if(fi>=this.funcIdx.types.length)throw new Error(`call: function index out of range ${fi}`);
+          let fi;
+          try {
+            fi = resolveIdx(instr.args,this.funcIdx.names);
+          } catch(e) {
+            throw new Error(`${e.message}${locStr(instr)}`);
+          }
+          if(fi>=this.funcIdx.types.length)throw new Error(`call: unknown function index ${fi}${locStr(instr)}`);
           const ft = this.funcIdx.types[fi];
           if(ft.params.length>0){
-            const pp = pop(ft.params.length,'call params');
+            const pp = pop(ft.params.length,'call params',instr);
             for(let i=0;i<ft.params.length;i++)
-              assertT(pp[i],ft.params[i],`call param ${i}`);
+              assertT(pp[i],ft.params[i],`call param ${i}`,instr);
           }
           push(ft.results);
           return;
         }
         if(op==='call_indirect'){
-          // 简化：使用 type 参数
           let typeIdx = 0;
-          // 先找 table 索引 (第一个参数)，再找 type 参数
           if(instr.args.length>=2){
             const a = instr.args[instr.args.length-1];
             if(a.kind==='IDENTIFIER'){
-              // type index via name
               typeIdx = resolveIdx([a],{});
             } else typeIdx = parseInt(a.value);
           } else if(instr.args.length===1){
             const a = instr.args[0];
             typeIdx = parseInt(a.value);
           }
-          if(typeIdx>=this.ast.types.length)throw new Error(`call_indirect: type index out of range ${typeIdx}`);
+          if(typeIdx>=this.ast.types.length)throw new Error(`call_indirect: type index out of range ${typeIdx}${locStr(instr)}`);
           const ft = this.ast.types[typeIdx];
-          // pop table index
-          const [tbl] = pop(1,'call_indirect table');
-          assertT(tbl,'i32','call_indirect table');
+          const [tbl] = pop(1,'call_indirect table',instr);
+          assertT(tbl,'i32','call_indirect table',instr);
           if(ft.params.length>0){
-            const pp = pop(ft.params.length,'call_indirect params');
+            const pp = pop(ft.params.length,'call_indirect params',instr);
             for(let i=0;i<ft.params.length;i++)
-              assertT(pp[i],ft.params[i],`call_indirect param ${i}`);
+              assertT(pp[i],ft.params[i],`call_indirect param ${i}`,instr);
           }
           push(ft.results);
           return;
@@ -1030,40 +1091,37 @@ class Validator {
       }
 
       if(fx.branch){
-        // br / br_if / br_table
         if(op==='br'||op==='br_if'){
           if(op==='br_if'){
-            const [c]=pop(1,'br_if');assertT(c,'i32','br_if cond');
+            const [c]=pop(1,'br_if',instr);assertT(c,'i32','br_if cond',instr);
           }
           const depth = parseInt(instr.args[0]?.value);
-          // 标签引用解析
           let actualDepth = depth;
           if(instr.args[0]?.kind==='IDENTIFIER'){
             const ln = instr.args[0].value;
-            if(!(ln in labels))throw new Error(`Unknown label ${ln}`);
+            if(!(ln in labels))throw new Error(`Unknown label '${ln}'${locStr(instr)}`);
             const target = labels[ln];
             actualDepth = ctrlStack.length - 1 - target;
-            if(actualDepth<0)throw new Error(`Label ${ln} out of scope`);
+            if(actualDepth<0)throw new Error(`Label '${ln}' out of scope${locStr(instr)}`);
           }
-          if(actualDepth>=ctrlStack.length)throw new Error(`Branch depth out of range: ${actualDepth}`);
+          if(actualDepth>=ctrlStack.length)throw new Error(`Branch depth out of range: ${actualDepth}${locStr(instr)}`);
           const target = ctrlStack[ctrlStack.length-1-actualDepth];
           if(target.endTypes.length>0){
-            const rr = pop(target.endTypes.length,`${op}`);
+            const rr = pop(target.endTypes.length,`${op}`,instr);
             for(let i=0;i<target.endTypes.length;i++)
-              assertT(rr[i],target.endTypes[i],`${op} result`);
+              assertT(rr[i],target.endTypes[i],`${op} result`,instr);
+            if(op==='br_if')push(rr);
           }
           if(op==='br'){
-            // 跳转后不可达
-            const cur = ctrlStack[ctrlStack.length-1];
-            cur.unreachable = true;
-            valStack.length = cur.height;
+            for(let i=0;i<=actualDepth;i++){
+              ctrlStack[ctrlStack.length-1-i].unreachable = true;
+            }
+            valStack.length = target.height;
           }
           return;
         }
         if(op==='br_table'){
-          const [idx]=pop(1,'br_table');assertT(idx,'i32','br_table idx');
-          // args: [label1, label2, ..., default]
-          // 简化处理
+          const [idx]=pop(1,'br_table',instr);assertT(idx,'i32','br_table idx',instr);
           return;
         }
       }
@@ -1071,9 +1129,9 @@ class Validator {
       if(op==='return'){
         const top = ctrlStack[0];
         if(top.endTypes.length>0){
-          const rr = pop(top.endTypes.length,'return');
+          const rr = pop(top.endTypes.length,'return',instr);
           for(let i=0;i<top.endTypes.length;i++)
-            assertT(rr[i],top.endTypes[i],'return');
+            assertT(rr[i],top.endTypes[i],'return',instr);
         }
         const cur = ctrlStack[ctrlStack.length-1];
         cur.unreachable = true;
@@ -1082,64 +1140,63 @@ class Validator {
       }
 
       if(op==='select'){
-        const [a,b,c]=pop(3,'select');
-        assertT(c,'i32','select cond');
-        if(a!=='any'&&b!=='any'&&a!==b)throw new Error(`select type mismatch: ${a} vs ${b}`);
+        const [a,b,c]=pop(3,'select',instr);
+        assertT(c,'i32','select cond',instr);
+        if(a!=='any'&&b!=='any'&&a!==b)throw new Error(`select type mismatch: ${a} vs ${b}${locStr(instr)}`);
         push([a==='any'?b:a]);
         return;
       }
 
-      // 内存指令
       if(fx.mem){
         if(fx.load){
-          const [addr]=pop(1,op);assertT(addr,'i32',`${op} addr`);
+          const [addr]=pop(1,op,instr);assertT(addr,'i32',`${op} addr`,instr);
           push([fx.pushT]);
         } else {
-          const [addr,val]=pop(2,op);
-          assertT(addr,'i32',`${op} addr`);
-          assertT(val,fx.popT,`${op} value`);
+          const [addr,val]=pop(2,op,instr);
+          assertT(addr,'i32',`${op} addr`,instr);
+          assertT(val,fx.popT,`${op} value`,instr);
         }
         return;
       }
 
-      // local/global 引用
       if(fx.ref&&op.startsWith('local.')){
-        const li = resolveIdx(instr.args,locals.names);
-        if(li>=locals.total)throw new Error(`local index out of range: ${li}`);
+        let li;
+        try {
+          li = resolveIdx(instr.args,locals.names);
+        } catch(e) {
+          throw new Error(`${e.message}${locStr(instr)}`);
+        }
+        if(li>=locals.total)throw new Error(`local index out of range: ${li}${locStr(instr)}`);
         const lt = locals.types[li];
         if(op==='local.get')push([lt]);
-        else if(op==='local.set'){const [v]=pop(1,op);assertT(v,lt,`${op}`);}
-        else if(op==='local.tee'){const [v]=pop(1,op);assertT(v,lt,`${op}`);push([lt]);}
+        else if(op==='local.set'){const [v]=pop(1,op,instr);assertT(v,lt,`${op}`,instr);}
+        else if(op==='local.tee'){const [v]=pop(1,op,instr);assertT(v,lt,`${op}`,instr);push([lt]);}
         return;
       }
       if(fx.ref&&op.startsWith('global.')){
-        // 简化：global index
         const gi = resolveIdx(instr.args,{});
         if(op==='global.get')push(['i32']);
-        else if(op==='global.set')pop(1,op);
+        else if(op==='global.set')pop(1,op,instr);
         return;
       }
 
-      // const
       if(op.endsWith('.const')){
         const t = op.split('.')[0];
         push([t]);
         return;
       }
 
-      // 其他：popT / pushT
       if(fx.popT){
         const n = fx.pop;
-        const pp = pop(n,op);
-        for(const p of pp)assertT(p,fx.popT,op);
+        const pp = pop(n,op,instr);
+        for(const p of pp)assertT(p,fx.popT,op,instr);
       } else if(fx.pop){
-        pop(fx.pop,op);
+        pop(fx.pop,op,instr);
       }
       if(fx.pushT){
         const n = fx.push;
         push(Array(n).fill(fx.pushT));
       } else if(fx.push){
-        // 默认类型
       }
     };
 
@@ -1154,7 +1211,7 @@ class Validator {
     // 检查函数返回类型
     const finalCtrl = ctrlStack[0];
     if(valStack.length < selfType.results.length){
-      throw new Error(`Function returns ${selfType.results.length} value(s), stack has ${valStack.length}`);
+      throw new Error(`Function returns ${selfType.results.length} value(s), stack has ${valStack.length} in ${funcName}`);
     }
     if(selfType.results.length>0){
       const rr = pop(selfType.results.length,'function end');
@@ -1239,6 +1296,7 @@ class Compiler {
     this.ast = ast;
     this.funcIdx = buildFuncIndex(ast);
     this._buildNameMaps();
+    this.debugInfo = null;
   }
 
   _buildNameMaps() {
@@ -1297,7 +1355,7 @@ class Compiler {
     return parseInt(arg.value);
   }
 
-  _encodeInstr(instr, labels, ctrl) {
+  _encodeInstr(instr, labels, ctrl, offsetMap = null, baseOffset = 0) {
     const op = instr.opcode;
     if (op === 'block' || op === 'loop' || op === 'if') {
       const [lbl, results, body, elseBody] = instr.args;
@@ -1307,10 +1365,16 @@ class Compiler {
       const prevLen = labels[lbl];
       if (lbl) labels[lbl] = ctrl.length;
       ctrl.push({ endTypes: results });
-      parts.push(this._encodeInstrs(body, labels, ctrl));
+      let nestedOffset = baseOffset + 2; // opcode + blocktype
+      const bodyBuf = this._encodeInstrs(body, labels, ctrl, offsetMap, nestedOffset);
+      parts.push(bodyBuf);
+      nestedOffset += bodyBuf.length;
       if (op === 'if' && elseBody && elseBody.length > 0) {
         parts.push(Buffer.from([OPCODES['else']]));
-        parts.push(this._encodeInstrs(elseBody, labels, ctrl));
+        nestedOffset += 1;
+        const elseBuf = this._encodeInstrs(elseBody, labels, ctrl, offsetMap, nestedOffset);
+        parts.push(elseBuf);
+        nestedOffset += elseBuf.length;
       }
       ctrl.pop();
       if (lbl) {
@@ -1403,18 +1467,29 @@ class Compiler {
     return null;
   }
 
-  _encodeInstrs(instrs, labels, ctrl) {
+  _encodeInstrs(instrs, labels, ctrl, offsetMap, funcBodyStart) {
     const parts = [];
+    let currentOffset = 0;
     for (const ins of instrs) {
-      const b = this._encodeInstr(ins, labels, ctrl);
-      if (b) parts.push(b);
+      if (ins.opcode === 'end' || ins.opcode === 'else' || ins.opcode === 'then') continue;
+      const b = this._encodeInstr(ins, labels, ctrl, offsetMap, funcBodyStart + currentOffset);
+      if (b) {
+        parts.push(b);
+        if (offsetMap && ins.index !== undefined) {
+          offsetMap.push({
+            instrIndex: ins.index,
+            codeOffset: funcBodyStart + currentOffset,
+            size: b.length
+          });
+        }
+        currentOffset += b.length;
+      }
     }
     return Buffer.concat(parts);
   }
 
-  _encodeFunctionBody(func) {
+  _encodeFunctionBody(func, funcGlobalIdx, collectDebug = false) {
     const locals = [];
-    // 按相同类型分组
     let i = 0;
     while (i < func.locals.length) {
       let count = 1;
@@ -1433,7 +1508,6 @@ class Compiler {
     const selfIdx = this.funcIdx.names[func.name];
     const localNames = funcLocals.names;
 
-    // 替换指令中的local引用
     const resolveLocalRef = (instr) => {
       if (!instr || !instr.args) return;
       if(instr.args.length > 0 && instr.args[0] && instr.args[0].kind === 'IDENTIFIER' &&
@@ -1457,10 +1531,8 @@ class Compiler {
           instr.args[0] = { kind: 'NUMBER', value: String(this.funcIdx.names[v]) };
         }
       }
-      // br / br_if 中的标签名转换为深度
       if ((instr.opcode === 'br' || instr.opcode === 'br_if') &&
           instr.args.length > 0 && instr.args[0] && instr.args[0].kind === 'IDENTIFIER') {
-        // 在编码时处理，这里先跳过
       }
       if(instr.block && instr.args.length >= 3) {
         const body = instr.args[2];
@@ -1472,14 +1544,26 @@ class Compiler {
     const clonedInstrs = JSON.parse(JSON.stringify(func.instructions));
     for (const ins of clonedInstrs) resolveLocalRef(ins);
 
-    const bodyBuf = this._encodeInstrs(clonedInstrs, labels, ctrl);
+    const offsetMap = collectDebug ? [] : null;
+    const bodyBuf = this._encodeInstrs(clonedInstrs, labels, ctrl, offsetMap, localBuf.length);
     const endBuf = Buffer.from([OPCODES['end']]);
 
     const codeBuf = Buffer.concat([localBuf, bodyBuf, endBuf]);
+
+    if (collectDebug && offsetMap) {
+      if (!this.debugInfo) this.debugInfo = { functions: {} };
+      this.debugInfo.functions[funcGlobalIdx] = {
+        name: func.name || `$func_${funcGlobalIdx}`,
+        codeOffsets: offsetMap
+      };
+    }
+
     return Buffer.concat([encodeULEB128(codeBuf.length), codeBuf]);
   }
 
-  compile() {
+  compile(collectDebug = false) {
+    this._collectDebug = collectDebug;
+    this.debugInfo = null;
     const sections = [];
 
     // Type Section (1)
@@ -1648,7 +1732,10 @@ class Compiler {
     }
 
     // Code Section (10)
-    const codeBodies = this.ast.functions.map((f) => this._encodeFunctionBody(f));
+    const codeBodies = this.ast.functions.map((f, i) => {
+      const funcGlobalIdx = this.funcIdx.importCount + i;
+      return this._encodeFunctionBody(f, funcGlobalIdx, this._collectDebug);
+    });
     const codeSection = encodeVec(codeBodies, (buf) => buf);
     sections.push({ id: 10, data: codeSection });
 
@@ -1702,9 +1789,10 @@ class Compiler {
 // 反汇编器 (Disassembler - WASM -> WAT)
 // ============================================================
 class Disassembler {
-  constructor(buf) {
+  constructor(buf, sourceMap = null) {
     this.buf = buf;
     this.offset = 0;
+    this.sourceMap = sourceMap;
   }
 
   _u8() { return this.buf[this.offset++]; }
@@ -1835,7 +1923,8 @@ class Disassembler {
               const tp = CODE_TYPE[this._u8()];
               for (let j = 0; j < cnt; j++) locals.push(tp);
             }
-            const instrs = this._parseInstrs();
+            const localSectionSize = this.offset - (endOffset - size + 1);
+            const instrs = this._parseInstrs(false, localSectionSize);
             this.offset = endOffset;
             return { locals, instructions: instrs };
           });
@@ -1886,12 +1975,13 @@ class Disassembler {
     throw new Error(`Unsupported block type: 0x${b.toString(16)}`);
   }
 
-  _parseInstrs(exprMode = false) {
+  _parseInstrs(exprMode = false, codeOffsetBase = 0) {
     const root = [];
     const ctrlStack = [{ list: root, opcode: 'root', inElse: false }];
     const labelMap = {};
     let labelCounter = 0;
     let depth = exprMode ? 0 : 1;
+    let currentCodeOffset = codeOffsetBase;
 
     const pushInstr = (instr) => {
       const top = ctrlStack[ctrlStack.length - 1];
@@ -1905,6 +1995,7 @@ class Disassembler {
     };
 
     while (true) {
+      const startOffset = this.offset;
       const opByte = this._u8();
       if (opByte === 0x0b) { // end
         depth--;
@@ -1928,9 +2019,11 @@ class Disassembler {
         const labelName = `$L${labelCounter++}`;
         labelMap[ctrlStack.length] = labelName;
         const opName = OPCODE_MAP[opByte];
-        const instr = { opcode: opName, args: [labelName, bt, [], []], block: true };
+        const instr = { opcode: opName, args: [labelName, bt, [], []], block: true, codeOffset: currentCodeOffset };
         pushInstr(instr);
-        ctrlStack.push({ list: null, opcode: opName, blockInstr: instr, inElse: false });
+        const headerSize = this.offset - startOffset;
+        currentCodeOffset += headerSize;
+        ctrlStack.push({ list: null, opcode: opName, blockInstr: instr, inElse: false, baseOffset: currentCodeOffset });
         continue;
       }
 
@@ -1939,7 +2032,7 @@ class Disassembler {
         throw new Error(`Unknown opcode: 0x${opByte.toString(16)}`);
       }
 
-      const instr = { opcode: opName, args: [] };
+      const instr = { opcode: opName, args: [], codeOffset: currentCodeOffset };
 
       if (opName === 'call') {
         instr.args.push({ kind: 'NUMBER', value: String(this._uleb()) });
@@ -1996,6 +2089,8 @@ class Disassembler {
         }
       }
 
+      const instrSize = this.offset - startOffset;
+      currentCodeOffset += instrSize;
       pushInstr(instr);
     }
     return root;
@@ -2005,6 +2100,34 @@ class Disassembler {
     const lines = ['(module'];
     const indent = (n) => '  '.repeat(n);
     const funcIdx = buildFuncIndex(ast);
+
+    const locMap = {};
+    if (this.sourceMap && this.sourceMap.functions) {
+      for (const func of this.sourceMap.functions) {
+        locMap[func.index] = {};
+        for (const instr of func.instructions) {
+          if (instr.codeOffset !== undefined) {
+            locMap[func.index][instr.codeOffset] = {
+              funcName: func.name,
+              line: instr.source?.line,
+              col: instr.source?.col,
+              ctrlPath: instr.ctrlPath
+            };
+          }
+        }
+      }
+    }
+
+    const formatLocComment = (funcIdx, codeOffset) => {
+      if (!locMap[funcIdx]) return '';
+      const loc = locMap[funcIdx][codeOffset];
+      if (!loc) return '';
+      const pathStr = loc.ctrlPath && loc.ctrlPath.length > 0
+        ? ' [' + loc.ctrlPath.map(p => p.opcode + (p.label ? ':' + p.label : '') + (p.branch ? '/' + p.branch : '')).join(' > ') + ']'
+        : '';
+      return `  ;; ${loc.funcName} line ${loc.line}, col ${loc.col}${pathStr}`;
+    };
+
     // 分配名称
     for (let i = 0; i < ast.functions.length; i++) {
       if (!ast.functions[i].name) ast.functions[i].name = `$f${i}`;
@@ -2124,12 +2247,16 @@ class Disassembler {
         lines.push(`${indent(2)}(local $l${j} ${f.locals[j]})`);
       }
       // instructions
+      const realFuncIdx = funcIdx.importCount + i;
       const emitInstr = (ins, depth) => {
         if (ins.block) {
           const [lbl, res, body, elseB] = ins.args;
           let hdr = `${indent(depth)}(${ins.opcode}`;
           if (lbl) hdr += ` ${lbl}`;
           if (res.length) hdr += ` (result ${res.join(' ')})`;
+          if (ins.codeOffset !== undefined) {
+            hdr += formatLocComment(realFuncIdx, ins.codeOffset);
+          }
           lines.push(hdr);
           for (const bi of body) emitInstr(bi, depth + 1);
           if (elseB && elseB.length > 0) {
@@ -2145,12 +2272,15 @@ class Disassembler {
           if (a.kind === 'IDENTIFIER') return a.value;
           return a.value;
         }).join(' ');
-        // memarg
         let memargStr = '';
         if (ins.memArg) {
           if (ins.memArg.offset) memargStr += ` offset=${ins.memArg.offset}`;
         }
-        lines.push(`${indent(depth)}(${ins.opcode}${argStr ? ' ' + argStr : ''}${memargStr})`);
+        let line = `${indent(depth)}(${ins.opcode}${argStr ? ' ' + argStr : ''}${memargStr})`;
+        if (ins.codeOffset !== undefined) {
+          line += formatLocComment(realFuncIdx, ins.codeOffset);
+        }
+        lines.push(line);
       };
       for (const ins of f.instructions) emitInstr(ins, 2);
       lines.push(`${indent(1)})`);
@@ -2268,6 +2398,104 @@ function formatInstrArgs(ins) {
   }).join(' ');
 }
 
+function generateSourceMap(ast, sourceFile) {
+  const funcIdx = buildFuncIndex(ast);
+  const map = {
+    version: 1,
+    sourceFile: path.basename(sourceFile),
+    generatedAt: new Date().toISOString(),
+    functions: []
+  };
+
+  function flattenInstructions(instrs) {
+    const flat = [];
+    for (const ins of instrs) {
+      if (ins.opcode === 'end' || ins.opcode === 'else' || ins.opcode === 'then') continue;
+      flat.push(ins);
+      if (ins.block) {
+        const [lbl, res, body, elseB] = ins.args;
+        if (Array.isArray(body)) flat.push(...flattenInstructions(body));
+        if (Array.isArray(elseB)) flat.push(...flattenInstructions(elseB));
+      }
+    }
+    return flat;
+  }
+
+  for (let i = 0; i < ast.functions.length; i++) {
+    const f = ast.functions[i];
+    const realIdx = funcIdx.importCount + i;
+    const allInstrs = flattenInstructions(f.instructions);
+
+    const funcEntry = {
+      name: f.name || `$func_${realIdx}`,
+      index: realIdx,
+      instrCount: f.instrCount || 0,
+      sourceRange: {
+        startLine: f.loc.startLine,
+        startCol: f.loc.startCol,
+        endLine: f.loc.endLine,
+        endCol: f.loc.endCol
+      },
+      params: f.params.map((t, j) => ({
+        name: f.paramNames[j] || `$p${j}`,
+        index: j,
+        type: t
+      })),
+      locals: f.locals.map((t, j) => ({
+        name: f.localNames[j] || `$l${j}`,
+        index: f.params.length + j,
+        type: t
+      })),
+      instructions: []
+    };
+
+    for (let j = 0; j < allInstrs.length; j++) {
+      const ins = allInstrs[j];
+      const simpleArgs = [];
+      if (!ins.block) {
+        for (const a of ins.args) {
+          if (a && typeof a === 'object' && a.kind !== undefined) {
+            simpleArgs.push({ kind: a.kind, value: a.value });
+          }
+        }
+      } else {
+        const [lbl, res, body, elseB] = ins.args;
+        if (lbl) simpleArgs.push({ kind: 'IDENTIFIER', value: lbl });
+        if (res && res.length > 0) {
+          for (const r of res) {
+            simpleArgs.push({ kind: 'KEYWORD', value: r });
+          }
+        }
+      }
+      const instrEntry = {
+        index: ins.index !== undefined ? ins.index : j,
+        opcode: ins.opcode,
+        args: simpleArgs,
+        source: {
+          line: ins.loc?.line,
+          col: ins.loc?.col
+        },
+        ctrlPath: ins.ctrlPath ? ins.ctrlPath.map(p => ({
+          opcode: p.opcode,
+          label: p.label,
+          branch: p.branch
+        })) : []
+      };
+      if (ins.memArg && (ins.memArg.offset !== 0 || ins.memArg.align !== null)) {
+        instrEntry.memArg = {
+          offset: ins.memArg.offset,
+          align: ins.memArg.align
+        };
+      }
+      funcEntry.instructions.push(instrEntry);
+    }
+
+    map.functions.push(funcEntry);
+  }
+
+  return map;
+}
+
 function showFunc(ast, nameOrIdx) {
   const funcIdx = buildFuncIndex(ast);
   let fi = -1;
@@ -2349,25 +2577,30 @@ function usage() {
 WAT Parser / Validator / Compiler / Disassembler
 
 Usage:
-  node watparser.js parse <MODULE.wat>              Tokenize and parse WAT file
-  node watparser.js validate <MODULE.wat>           Validate type correctness (stack checking)
-  node watparser.js compile <MODULE.wat> -o <out>   Compile WAT to WASM binary
-  node watparser.js disasm <INPUT.wasm>             Disassemble WASM to WAT text
-  node watparser.js module <MODULE.wat>             Show module structure (funcs/exports/memory/global)
-  node watparser.js func <name|idx> <MODULE.wat>          Show function details (signature/locals/instructions)
+  node watparser.js parse <MODULE.wat>                     Tokenize and parse WAT file
+  node watparser.js validate <MODULE.wat>                  Validate type correctness (stack checking)
+  node watparser.js compile <MODULE.wat> -o <out>          Compile WAT to WASM binary
+  node watparser.js compile <MODULE.wat> -o <out> --debug-map <map.json>
+                                                            Compile with debug map (code offset → source)
+  node watparser.js disasm <INPUT.wasm>                    Disassemble WASM to WAT text
+  node watparser.js disasm <INPUT.wasm> --with-loc <map.json>
+                                                            Disassemble with source location annotations
+  node watparser.js sourcemap <MODULE.wat> -o <map.json>   Export source map to JSON
+  node watparser.js module <MODULE.wat>                    Show module structure
+  node watparser.js func <name|idx> <MODULE.wat>           Show function details
 
 Debug commands:
-  node watparser.js tokens <MODULE.wat>             Show tokens (lexer output)
-  node watparser.js test <MODULE.wat>               Compile+load+test via Node.js
-  node watparser.js roundtrip <MODULE.wat>          Compile → disasm → recompile verification
+  node watparser.js tokens <MODULE.wat>                    Show tokens (lexer output)
+  node watparser.js test <MODULE.wat>                      Compile+load+test via Node.js
+  node watparser.js roundtrip <MODULE.wat>                 Compile → disasm → recompile verification
 
 Examples:
   node watparser.js parse examples/add.wat
   node watparser.js validate examples/factorial.wat
   node watparser.js compile examples/add.wat -o add.wasm
-  node watparser.js module examples/stringops.wat
-  node watparser.js func strlen examples/stringops.wat
-  node watparser.js disasm add.wasm
+  node watparser.js sourcemap examples/debug.wat -o map.json
+  node watparser.js compile examples/debug.wat -o debug.wasm --debug-map map.json
+  node watparser.js disasm debug.wasm --with-loc map.json
 `);
   process.exit(1);
 }
@@ -2457,6 +2690,33 @@ async function main() {
         console.log(`\nTotal tokens: ${toks.length - 1}`);
         break;
       }
+      case 'sourcemap': {
+        if (args.length < 2) usage();
+        let outPath = 'map.json';
+        for (let i = 2; i < args.length; i++) {
+          if (args[i] === '-o' && args[i + 1]) { outPath = args[i + 1]; i++; }
+        }
+        const ast = parseWatFile(args[1]);
+        const map = generateSourceMap(ast, args[1]);
+        const jsonStr = JSON.stringify(map, null, 2);
+        fs.writeFileSync(outPath, jsonStr);
+        try {
+          JSON.parse(jsonStr);
+          console.log(`✓ Source map exported: ${outPath}`);
+          console.log(`  Functions: ${map.functions.length}`);
+          let totalInstr = 0;
+          for (const f of map.functions) {
+            totalInstr += f.instructions.length;
+            console.log(`    ${f.name}: ${f.instructions.length} instructions`);
+          }
+          console.log(`  Total instructions: ${totalInstr}`);
+          console.log(`  JSON validated: can be parsed by json.tool`);
+        } catch (e) {
+          console.error(`✗ Generated JSON is invalid: ${e.message}`);
+          process.exitCode = 1;
+        }
+        break;
+      }
       case 'parse': {
         if (args.length < 2) usage();
         const src = fs.readFileSync(args[1], 'utf8');
@@ -2473,6 +2733,17 @@ async function main() {
         console.log(`  Globals: ${ast.globals.length}`);
         if (ast.start !== undefined && ast.start !== null) console.log(`  Start function: func[${ast.start}]`);
         if (ast.datas) console.log(`  Data segments: ${ast.datas.length}`);
+        if (ast.functions.length > 0) {
+          const funcIdx = buildFuncIndex(ast);
+          console.log(`\n  Functions details:`);
+          for (let i = 0; i < ast.functions.length; i++) {
+            const f = ast.functions[i];
+            const realIdx = funcIdx.importCount + i;
+            const srcRange = f.loc.startLine !== null ?
+              `lines ${f.loc.startLine}-${f.loc.endLine}` : 'unknown';
+            console.log(`    [${realIdx}] ${f.name || 'anon'}: ${f.instrCount || 0} instructions, ${srcRange}`);
+          }
+        }
         break;
       }
       case 'module': {
@@ -2504,8 +2775,10 @@ async function main() {
       case 'compile': {
         if (args.length < 2) usage();
         let outPath = 'out.wasm';
+        let debugMapPath = null;
         for (let i = 2; i < args.length; i++) {
           if (args[i] === '-o' && args[i + 1]) { outPath = args[i + 1]; i++; }
+          else if (args[i] === '--debug-map' && args[i + 1]) { debugMapPath = args[i + 1]; i++; }
         }
         const ast = parseWatFile(args[1]);
         const val = new Validator(ast);
@@ -2517,10 +2790,56 @@ async function main() {
           return;
         }
         const comp = new Compiler(ast);
-        const buf = comp.compile();
+        const buf = comp.compile(!!debugMapPath);
         fs.writeFileSync(outPath, buf);
         console.log(`✓ Compiled successfully: ${outPath} (${buf.length} bytes)`);
-        // 验证可被 Node.js 加载
+
+        if (debugMapPath && comp.debugInfo) {
+          let existingMap = null;
+          try {
+            if (fs.existsSync(debugMapPath)) {
+              const mapContent = fs.readFileSync(debugMapPath, 'utf8');
+              existingMap = JSON.parse(mapContent);
+            }
+          } catch (e) {
+            console.log(`  Note: Could not read existing map file, creating new one`);
+          }
+
+          if (!existingMap) {
+            existingMap = generateSourceMap(ast, args[1]);
+          }
+
+          for (const func of existingMap.functions) {
+            const debugFunc = comp.debugInfo.functions[func.index];
+            if (debugFunc && debugFunc.codeOffsets) {
+              const offsetMap = {};
+              for (const off of debugFunc.codeOffsets) {
+                offsetMap[off.instrIndex] = {
+                  codeOffset: off.codeOffset,
+                  size: off.size
+                };
+              }
+              for (const instr of func.instructions) {
+                const off = offsetMap[instr.index];
+                if (off) {
+                  instr.codeOffset = off.codeOffset;
+                  instr.codeSize = off.size;
+                }
+              }
+            }
+          }
+
+          const jsonStr = JSON.stringify(existingMap, null, 2);
+          fs.writeFileSync(debugMapPath, jsonStr);
+          console.log(`✓ Debug map updated with code offsets: ${debugMapPath}`);
+          try {
+            JSON.parse(jsonStr);
+            console.log(`  JSON validated: can be parsed by json.tool`);
+          } catch (e) {
+            console.error(`  ✗ JSON validation failed: ${e.message}`);
+          }
+        }
+
         try {
           const mod = await WebAssembly.compile(buf);
           console.log('✓ Generated WASM can be loaded by WebAssembly.compile()');
@@ -2533,8 +2852,23 @@ async function main() {
       }
       case 'disasm': {
         if (args.length < 2) usage();
+        let locMapPath = null;
+        for (let i = 2; i < args.length; i++) {
+          if (args[i] === '--with-loc' && args[i + 1]) { locMapPath = args[i + 1]; i++; }
+        }
         const buf = fs.readFileSync(args[1]);
-        const d = new Disassembler(buf);
+        let sourceMap = null;
+        if (locMapPath) {
+          try {
+            const mapContent = fs.readFileSync(locMapPath, 'utf8');
+            sourceMap = JSON.parse(mapContent);
+            console.log(`✓ Loaded source map: ${locMapPath}`);
+          } catch (e) {
+            console.error(`✗ Could not load source map: ${e.message}`);
+            process.exitCode = 1;
+          }
+        }
+        const d = new Disassembler(buf, sourceMap);
         const wat = d.disasm();
         console.log(wat);
         break;
