@@ -2354,7 +2354,7 @@ Usage:
   node watparser.js compile <MODULE.wat> -o <out>   Compile WAT to WASM binary
   node watparser.js disasm <INPUT.wasm>             Disassemble WASM to WAT text
   node watparser.js module <MODULE.wat>             Show module structure (funcs/exports/memory/global)
-  node watparser.js func <MODULE.wat> <name|idx>    Show function details (signature/locals/instructions)
+  node watparser.js func <name|idx> <MODULE.wat>          Show function details (signature/locals/instructions)
 
 Debug commands:
   node watparser.js tokens <MODULE.wat>             Show tokens (lexer output)
@@ -2366,7 +2366,7 @@ Examples:
   node watparser.js validate examples/factorial.wat
   node watparser.js compile examples/add.wat -o add.wasm
   node watparser.js module examples/stringops.wat
-  node watparser.js func examples/stringops.wat strlen
+  node watparser.js func strlen examples/stringops.wat
   node watparser.js disasm add.wasm
 `);
   process.exit(1);
@@ -2483,8 +2483,8 @@ async function main() {
       }
       case 'func': {
         if (args.length < 3) usage();
-        const ast = parseWatFile(args[1]);
-        showFunc(ast, args[2]);
+        const ast = parseWatFile(args[2]);
+        showFunc(ast, args[1]);
         break;
       }
       case 'validate': {
