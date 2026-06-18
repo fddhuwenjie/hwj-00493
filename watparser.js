@@ -2349,21 +2349,25 @@ function usage() {
 WAT Parser / Validator / Compiler / Disassembler
 
 Usage:
-  node watparser.js parse <MODULE.wat>              Tokenize & parse WAT, show module structure
-  node watparser.js module <MODULE.wat>             Alias for parse
-  node watparser.js func <MODULE.wat> <name|idx>    Show function details
-  node watparser.js validate <MODULE.wat>           Validate type correctness
+  node watparser.js parse <MODULE.wat>              Tokenize and parse WAT file
+  node watparser.js validate <MODULE.wat>           Validate type correctness (stack checking)
   node watparser.js compile <MODULE.wat> -o <out>   Compile WAT to WASM binary
   node watparser.js disasm <INPUT.wasm>             Disassemble WASM to WAT text
+  node watparser.js module <MODULE.wat>             Show module structure (funcs/exports/memory/global)
+  node watparser.js func <MODULE.wat> <name|idx>    Show function details (signature/locals/instructions)
+
+Debug commands:
   node watparser.js tokens <MODULE.wat>             Show tokens (lexer output)
+  node watparser.js test <MODULE.wat>               Compile+load+test via Node.js
+  node watparser.js roundtrip <MODULE.wat>          Compile → disasm → recompile verification
 
 Examples:
   node watparser.js parse examples/add.wat
   node watparser.js validate examples/factorial.wat
   node watparser.js compile examples/add.wat -o add.wasm
+  node watparser.js module examples/stringops.wat
   node watparser.js func examples/stringops.wat strlen
   node watparser.js disasm add.wasm
-  node watparser.js test examples/add.wat           Compile+load+test via Node.js
 `);
   process.exit(1);
 }
@@ -2453,7 +2457,24 @@ async function main() {
         console.log(`\nTotal tokens: ${toks.length - 1}`);
         break;
       }
-      case 'parse':
+      case 'parse': {
+        if (args.length < 2) usage();
+        const src = fs.readFileSync(args[1], 'utf8');
+        const toks = tokenize(src);
+        const ast = parseWatFile(args[1]);
+        console.log(`✓ Parsed successfully: ${args[1]}`);
+        console.log(`  Tokens: ${toks.length - 1}`);
+        console.log(`  Types: ${ast.types.length}`);
+        console.log(`  Functions: ${ast.functions.length}`);
+        console.log(`  Imports: ${ast.imports.length}`);
+        console.log(`  Exports: ${ast.exports.length}`);
+        console.log(`  Memories: ${ast.memories.length}`);
+        console.log(`  Tables: ${ast.tables.length}`);
+        console.log(`  Globals: ${ast.globals.length}`);
+        if (ast.start !== undefined && ast.start !== null) console.log(`  Start function: func[${ast.start}]`);
+        if (ast.datas) console.log(`  Data segments: ${ast.datas.length}`);
+        break;
+      }
       case 'module': {
         if (args.length < 2) usage();
         const ast = parseWatFile(args[1]);
@@ -2526,20 +2547,41 @@ async function main() {
       case 'roundtrip': {
         if (args.length < 2) usage();
         const srcWat = fs.readFileSync(args[1], 'utf8');
-        const ast = parseWatFile(args[1]);
-        const comp = new Compiler(ast);
-        const buf = comp.compile();
-        const d = new Disassembler(buf);
+        const ast1 = parseWatFile(args[1]);
+        const comp1 = new Compiler(ast1);
+        const buf1 = comp1.compile();
+        console.log(`✓ Compiled original WAT → ${buf1.length} bytes`);
+
+        const d = new Disassembler(buf1);
         const outWat = d.disasm();
-        console.log('=== Original WAT ===');
+        console.log('✓ Disassembled WASM → WAT');
+
+        const tmpPath = '/tmp/_roundtrip_.wat';
+        fs.writeFileSync(tmpPath, outWat);
+        const ast2 = parseWatFile(tmpPath);
+        const comp2 = new Compiler(ast2);
+        const buf2 = comp2.compile();
+        fs.unlinkSync(tmpPath);
+        console.log(`✓ Re-compiled roundtrip WAT → ${buf2.length} bytes`);
+
+        console.log('\n=== Original WAT ===');
         console.log(srcWat);
         console.log('\n=== Roundtrip WAT (compile → disasm) ===');
         console.log(outWat);
-        console.log('\n=== Verifying roundtrip WASM loads ===');
+
+        console.log('\n=== Verifying roundtrip ===');
         try {
-          const m1 = await WebAssembly.compile(fs.readFileSync(args[1].replace('.wat', '.wasm')).length ? fs.readFileSync(args[1].replace('.wat', '.wasm')) : buf);
-          const m2 = await WebAssembly.compile(buf);
-          console.log('✓ Both load successfully.');
+          const m1 = await WebAssembly.compile(buf1);
+          const m2 = await WebAssembly.compile(buf2);
+          const exp1 = WebAssembly.Module.exports(m1);
+          const exp2 = WebAssembly.Module.exports(m2);
+          const namesMatch = exp1.map(e => e.name).join(',') === exp2.map(e => e.name).join(',');
+          const kindsMatch = exp1.map(e => e.kind).join(',') === exp2.map(e => e.kind).join(',');
+          if (namesMatch && kindsMatch) {
+            console.log('✓ Both WASM modules load and have matching exports.');
+          } else {
+            console.log(`✗ Export mismatch: original=[${exp1.map(e=>e.kind+':'+e.name).join(',')}] roundtrip=[${exp2.map(e=>e.kind+':'+e.name).join(',')}]`);
+          }
         } catch (e) {
           console.log(`✗ ${e.message}`);
         }
