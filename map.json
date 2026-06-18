@@ -1,7 +1,7 @@
 {
   "version": 1,
   "sourceFile": "debug.wat",
-  "generatedAt": "2026-06-18T05:29:31.904Z",
+  "generatedAt": "2026-06-18T06:01:51.317Z",
   "functions": [
     {
       "name": "$nested_demo",

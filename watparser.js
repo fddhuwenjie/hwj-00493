@@ -1915,7 +1915,8 @@ class Disassembler {
         case 10: // Code
           const bodies = this._vec(() => {
             const size = this._uleb();
-            const endOffset = this.offset + size;
+            const codeStart = this.offset;
+            const endOffset = codeStart + size;
             const locals = [];
             const localGroups = this._uleb();
             for (let i = 0; i < localGroups; i++) {
@@ -1923,8 +1924,8 @@ class Disassembler {
               const tp = CODE_TYPE[this._u8()];
               for (let j = 0; j < cnt; j++) locals.push(tp);
             }
-            const localSectionSize = this.offset - (endOffset - size + 1);
-            const instrs = this._parseInstrs(false, localSectionSize);
+            const instrsBase = this.offset - codeStart;
+            const instrs = this._parseInstrs(false, instrsBase);
             this.offset = endOffset;
             return { locals, instructions: instrs };
           });
@@ -1998,6 +1999,7 @@ class Disassembler {
       const startOffset = this.offset;
       const opByte = this._u8();
       if (opByte === 0x0b) { // end
+        currentCodeOffset += 1;
         depth--;
         if (depth < 0) break;
         if (ctrlStack.length > 1) {
@@ -2007,6 +2009,7 @@ class Disassembler {
         continue;
       }
       if (opByte === 0x05) { // else
+        currentCodeOffset += 1;
         const top = ctrlStack[ctrlStack.length - 1];
         if (top.opcode === 'if') {
           top.inElse = true;
